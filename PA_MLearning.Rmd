@@ -1,0 +1,106 @@
+---
+title: "Programming Assignment ML"
+author: "Maria Arce"
+date: "February 26 - 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= TRUE)
+```
+
+## Summary
+
+This report shows the results for three Machine Learning models applied to a data that classifies the type of activity for weight lifting accordint to how well people do it. Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. Data is collected from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har 
+
+## Data Load and Summary
+
+Data is loaded from the project webpage, NA strings are specified and the function summary is applied to the variables to 
+get an idea of the type of variables that the data has.
+
+```{r warning=F, message=F}
+library(AppliedPredictiveModeling)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(rpart)
+library(rattle)
+library(randomForest)
+
+train<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), na.strings=c("NA","#DIV/0!",""))
+test<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), na.strings=c("NA","#DIV/0!",""))
+
+train$classe<-factor(train$classe)
+#summary(train)
+```
+
+## Data Cleanning and Data Partitioning
+
+All variables with data missing are removed since they had most of the data missing. Additionally variables about participants and event identification were removed too.
+
+```{r fig.width=16, fig.height=15}
+empt<-colSums(is.na(train),na.rm=T)
+train2<-train[,empt==0]
+train2<-train2%>%select(num_window:classe)
+
+dat<-train2%>%tidyr::gather("Var","value",num_window:magnet_forearm_z)
+ggplot(dat,aes(x=classe,y=value))+geom_jitter(alpha=0.5)+facet_wrap(~Var,ncol=7,scales="free_y")
+
+set.seed(2601)
+inTrain = createDataPartition(train2$classe, p = 0.7,list=FALSE)
+training = train2[ inTrain,]
+testing = train2[-inTrain,]
+
+```
+
+
+## Prediction Trees
+
+```{r}
+set.seed(2602)
+mod1<-train(classe~.,data=training,method="rpart")
+fancyRpartPlot(mod1$finalModel,cex=0.5)
+
+pred1<-predict(mod1,newdata=testing)
+cm1<-confusionMatrix(pred1, testing$classe);cm1
+```
+
+
+## Random Forest
+
+```{r}
+set.seed(2603)
+#mod2 <- randomForest(classe~.,data=training,proximity=TRUE,importance=TRUE,ntree=300,mtry=27)
+load("C:/Users/Hikaru/Documents/Cursos/Coursera/Data Science/Machine Learning/mod2.RData")
+
+pred2<-predict(mod2,newdata=testing)
+cm2<-confusionMatrix(pred2, testing$classe);cm2
+```
+
+
+## Prediction with the Best Model
+
+Since Random Forest was the model with the best accuracy it was applied to the test data to classify the 20 observations.
+
+```{r}
+
+cm1_dat<-data.frame(cm1$byClass);cm1_dat$Class<-rownames(cm1_dat)
+cm1_dat2<-cm1_dat%>%tidyr::gather("Statistics","Value",1:11)
+cm1_dat2$model<-"Prediction Trees"
+
+cm2_dat<-data.frame(cm2$byClass);cm2_dat$Class<-rownames(cm2_dat)
+cm2_dat2<-cm2_dat%>%tidyr::gather("Statistics","Value",1:11)
+cm2_dat2$model<-"Random Forest"
+
+cm<-rbind(cm1_dat2,cm2_dat2)
+
+ggplot(cm,aes(x=factor(Class),y=Statistics,fill=Value))+geom_raster()+facet_grid(.~model)+xlab("")
+
+predict(mod2,newdata=test)
+```
+
+
+##References
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#dataset#ixzz4ZpySD5Iq
